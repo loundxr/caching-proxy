@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/loundxr/caching-proxy/internal/config"
 )
@@ -14,4 +17,10 @@ func main() {
 		return
 	}
 	fmt.Println(cfg)
+
+	ctx, cancel := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt, syscall.SIGINT, syscall.SIGTERM,
+	)
+	defer cancel()
 }
