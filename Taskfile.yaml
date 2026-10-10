@@ -1,0 +1,13 @@
+version: "3"
+
+silent: true
+
+vars:
+  APP_NAME: "caching-proxy"
+  MAIN_PATH: "./cmd/{{.APP_NAME}}"
+
+tasks:
+  dev:
+    desc: "Run the app with default flag values"
+    cmds:
+      - go run {{.MAIN_PATH}}/main.go -port 3000 -origin http://dummyjson.com
