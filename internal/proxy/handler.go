@@ -30,7 +30,6 @@ func New(origin *url.URL, logger *slog.Logger) *Handler {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// почему создаем именно новый
 	outReq, err := http.NewRequestWithContext(r.Context(), r.Method, h.targetURL(r), r.Body)
 	if err != nil {
 		h.logger.Error("build request", slog.String("error", err.Error()))
@@ -39,11 +38,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	outReq.ContentLength = r.ContentLength
-	// clone() потому что указатель?
 	outReq.Header = r.Header.Clone()
 	removeHopByHop(outReq.Header)
 
-	// что здесь делаем и с какой целью
 	if ip, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
 		if prior := outReq.Header.Get("X-Forwarded-For"); prior != "" {
 			ip = prior + ", " + ip
@@ -58,7 +55,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			slog.String("url", outReq.URL.String()),
 			"error", err.Error(),
 		)
-		// почему BadGateway
 		http.Error(w, "bad gateway", http.StatusBadGateway)
 		return
 	}
