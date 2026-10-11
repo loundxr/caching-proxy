@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/loundxr/caching-proxy/internal/config"
+	"github.com/loundxr/caching-proxy/internal/proxy"
 )
 
 type HTTPServer struct {
@@ -25,8 +26,8 @@ func NewHTTPServer(cfg config.Config, log *slog.Logger) *HTTPServer {
 
 func (s *HTTPServer) Run(ctx context.Context) error {
 	srv := http.Server{
-		Addr: fmt.Sprintf(":%d", s.cfg.Port),
-		// Handler: proxy.New(),
+		Addr:    fmt.Sprintf(":%d", s.cfg.Port),
+		Handler: proxy.New(s.cfg.Origin, s.log),
 	}
 
 	errCh := make(chan error, 1)
