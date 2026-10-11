@@ -41,6 +41,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	outReq.ContentLength = r.ContentLength
 	// clone() потому что указатель?
 	outReq.Header = r.Header.Clone()
+	removeHopByHop(outReq.Header)
 
 	// что здесь делаем и с какой целью
 	if ip, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
@@ -63,6 +64,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	removeHopByHop(resp.Header)
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 
