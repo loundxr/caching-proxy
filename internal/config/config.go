@@ -8,7 +8,7 @@ import (
 
 type Config struct {
 	Port   int
-	Origin url.URL
+	Origin *url.URL
 }
 
 func ParseFlags(args []string) (Config, error) {
@@ -34,6 +34,6 @@ func ParseFlags(args []string) (Config, error) {
 
 	return Config{
 		Port:   *port,
-		Origin: *originURL,
+		Origin: originURL,
 	}, nil
 }
