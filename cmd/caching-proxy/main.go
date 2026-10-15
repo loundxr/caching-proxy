@@ -7,9 +7,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	cache "github.com/loundxr/caching-proxy/internal/cache/redis"
 	"github.com/loundxr/caching-proxy/internal/config"
 	"github.com/loundxr/caching-proxy/internal/transport"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -27,7 +30,19 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	srv := transport.NewHTTPServer(cfg, logger)
+	rdb := redis.NewClient(&redis.Options{Addr: cache.RedisAddr})
+	defer rdb.Close()
+
+	pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	if err := rdb.Ping(pingCtx).Err(); err != nil {
+		logger.Warn(
+			"redis is unavailable, running without caching...",
+			slog.String("addr", cache.RedisAddr),
+			slog.String("error", err.Error()),
+		)
+	}
+
+	srv := transport.NewHTTPServer(cfg, rdb, cache.DefaultTTL, logger)
 	if err := srv.Run(ctx); err != nil {
 		logger.Error("HTTP server run", slog.String("error", err.Error()))
 	}

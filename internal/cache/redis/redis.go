@@ -10,7 +10,12 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const defaultOpTimeout = 200 * time.Millisecond
+const (
+	defaultOpTimeout = 200 * time.Millisecond
+	RedisAddr        = "localhost:6379"
+	DefaultTTL       = time.Hour
+	cachePrefix      = "cproxy:"
+)
 
 type Redis struct {
 	client    redis.Cmdable
@@ -18,12 +23,10 @@ type Redis struct {
 	opTimeout time.Duration
 }
 
-// var _ Cache = (*Redis)(nil)
-
-func NewRedis(client redis.Cmdable, prefix string) *Redis {
+func NewRedis(client redis.Cmdable) *Redis {
 	return &Redis{
 		client:    client,
-		prefix:    prefix,
+		prefix:    cachePrefix,
 		opTimeout: defaultOpTimeout,
 	}
 }

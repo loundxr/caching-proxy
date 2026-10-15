@@ -8,13 +8,28 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/alicebob/miniredis/v2"
+	cache "github.com/loundxr/caching-proxy/internal/cache/redis"
+	"github.com/redis/go-redis/v9"
 )
+
+const testTTL = time.Minute
 
 func newTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-func newProxyFor(t *testing.T, origin http.Handler) *httptest.Server {
+func newRedisCache(t *testing.T) (*cache.Redis, *miniredis.Miniredis) {
+	t.Helper()
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	return cache.NewRedis(client), mr
+}
+
+func newProxyFor(t *testing.T, origin http.Handler, c cache.Cache) *httptest.Server {
 	t.Helper()
 
 	o := httptest.NewServer(origin)
@@ -25,20 +40,22 @@ func newProxyFor(t *testing.T, origin http.Handler) *httptest.Server {
 		t.Fatal(err)
 	}
 
-	p := httptest.NewServer(New(u, newTestLogger()))
+	p := httptest.NewServer(New(u, c, testTTL, newTestLogger()))
 	t.Cleanup(p.Close)
 	return p
 }
 
 func TestPassthrough(t *testing.T) {
 	var gotURI, gotXFF string
+	c, _ := newRedisCache(t)
+
 	p := newProxyFor(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotURI = r.URL.RequestURI()
 		gotXFF = r.Header.Get("X-Forwarded-For")
 		w.Header().Set("X-Origin", "yes")
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte("test"))
-	}))
+	}), c)
 	wantURI := "/products/1?limit=5"
 
 	resp, err := http.Get(p.URL + wantURI)
@@ -70,10 +87,12 @@ func TestPassthrough(t *testing.T) {
 }
 
 func TestPostBodyForwarded(t *testing.T) {
+	c, _ := newRedisCache(t)
+
 	p := newProxyFor(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		_, _ = w.Write(b)
-	}))
+	}), c)
 
 	resp, err := http.Post(p.URL+"/ping", "text/plain", strings.NewReader("ping"))
 	if err != nil {
@@ -92,7 +111,8 @@ func TestOriginDown(t *testing.T) {
 	u, _ := url.Parse(o.URL)
 	o.Close()
 
-	p := httptest.NewServer(New(u, newTestLogger()))
+	c, _ := newRedisCache(t)
+	p := httptest.NewServer(New(u, c, testTTL, newTestLogger()))
 	defer p.Close()
 
 	resp, err := http.Get(p.URL + "/")
