@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -118,26 +120,6 @@ func TestPostBodyForwarded(t *testing.T) {
 	}
 }
 
-func TestOriginDown(t *testing.T) {
-	o := httptest.NewServer(http.NotFoundHandler())
-	u, _ := url.Parse(o.URL)
-	o.Close()
-
-	c, _ := newRedisCache(t)
-	p := httptest.NewServer(New(u, c, testTTL, newTestLogger()))
-	defer p.Close()
-
-	resp, err := http.Get(p.URL + "/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusBadGateway {
-		t.Errorf("status=%d, want %d", resp.StatusCode, http.StatusBadGateway)
-	}
-}
-
 func TestMissThenHit(t *testing.T) {
 	var calls atomic.Int32
 
@@ -210,5 +192,56 @@ func TestNon200NotCached(t *testing.T) {
 	}
 	if n := calls.Load(); n != 2 {
 		t.Errorf("origin calls = %d, want 2", n)
+	}
+}
+
+func TestOriginDown(t *testing.T) {
+	o := httptest.NewServer(http.NotFoundHandler())
+	u, _ := url.Parse(o.URL)
+	o.Close()
+
+	c, _ := newRedisCache(t)
+	p := httptest.NewServer(New(u, c, testTTL, newTestLogger()))
+	defer p.Close()
+
+	resp, err := http.Get(p.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("status=%d, want %d", resp.StatusCode, http.StatusBadGateway)
+	}
+}
+
+type failingCache struct{}
+
+var ErrRedisDown = errors.New("redis down")
+
+func (failingCache) Get(context.Context, string) (*cache.Entry, bool, error) {
+	return nil, false, ErrRedisDown
+}
+
+func (failingCache) Set(context.Context, string, *cache.Entry, time.Duration) error {
+	return ErrRedisDown
+}
+
+func (failingCache) Clear(context.Context) error {
+	return ErrRedisDown
+}
+
+func TestCacheFailureFailsOpen(t *testing.T) {
+	p := newProxyFor(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}), failingCache{})
+
+	resp, body := get(t, p.URL+"/failcache")
+
+	if resp.StatusCode != http.StatusOK || body != "ok" {
+		t.Errorf("got %d %q, want 200 %q", resp.StatusCode, body, "ok")
+	}
+	if resp.Header.Get("X-Cache") != "MISS" {
+		t.Errorf("X-Cache = %q, want MISS", resp.Header.Get("X-Cache"))
 	}
 }
