@@ -61,6 +61,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				slog.Int("status", e.Status),
 				slog.String("cache", xCacheHit),
 			)
+			return
 		}
 	}
 

@@ -10,4 +10,4 @@ tasks:
   dev:
     desc: "Run the app with default flag values"
     cmds:
-      - go run {{.MAIN_PATH}}/main.go -port 3000 -origin http://dummyjson.com
+      - go run {{.MAIN_PATH}}/main.go -port 3000 -origin https://dummyjson.com
