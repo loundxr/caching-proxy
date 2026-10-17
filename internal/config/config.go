@@ -7,8 +7,9 @@ import (
 )
 
 type Config struct {
-	Port   int
-	Origin *url.URL
+	Port       int
+	Origin     *url.URL
+	ClearCache bool
 }
 
 func ParseFlags(args []string) (Config, error) {
@@ -16,9 +17,14 @@ func ParseFlags(args []string) (Config, error) {
 
 	port := fs.Int("port", 3000, "port to listen on")
 	origin := fs.String("origin", "", "origin server URL")
+	clearCache := fs.Bool("clear-cache", false, "clear app cache and exit")
 
 	if err := fs.Parse(args); err != nil {
 		return Config{}, fmt.Errorf("parse flags: %w", err)
+	}
+
+	if *clearCache {
+		return Config{ClearCache: true}, nil
 	}
 
 	if *origin == "" {

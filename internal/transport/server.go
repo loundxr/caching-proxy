@@ -8,18 +8,30 @@ import (
 	"net/http"
 	"time"
 
+	cache "github.com/loundxr/caching-proxy/internal/cache/redis"
 	"github.com/loundxr/caching-proxy/internal/config"
 	"github.com/loundxr/caching-proxy/internal/proxy"
+	"github.com/redis/go-redis/v9"
 )
 
 type HTTPServer struct {
 	cfg config.Config
 	log *slog.Logger
+	rdb *redis.Client
+	ttl time.Duration
 }
 
-func NewHTTPServer(cfg config.Config, log *slog.Logger) *HTTPServer {
+type CacheParameters struct {
+	rdb    *redis.Client
+	ttl    time.Duration
+	prefix string
+}
+
+func NewHTTPServer(cfg config.Config, rdb *redis.Client, ttl time.Duration, log *slog.Logger) *HTTPServer {
 	return &HTTPServer{
 		cfg: cfg,
+		rdb: rdb,
+		ttl: ttl,
 		log: log,
 	}
 }
@@ -27,7 +39,7 @@ func NewHTTPServer(cfg config.Config, log *slog.Logger) *HTTPServer {
 func (s *HTTPServer) Run(ctx context.Context) error {
 	srv := http.Server{
 		Addr:    fmt.Sprintf(":%d", s.cfg.Port),
-		Handler: proxy.New(s.cfg.Origin, s.log),
+		Handler: proxy.New(s.cfg.Origin, cache.NewRedis(s.rdb), s.ttl, s.log),
 	}
 
 	errCh := make(chan error, 1)
