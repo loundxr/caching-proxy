@@ -11,3 +11,20 @@ tasks:
     desc: "Run the app with default flag values"
     cmds:
       - go run {{.MAIN_PATH}}/main.go -port 3000 -origin https://dummyjson.com
+
+  clear-cache:
+    desc: "Clear app's Redis cache via '--clear-cache' flag"
+    cmds:
+      - go run {{.MAIN_PATH}}/main.go --clear-cache
+
+  env-up:
+    desc: "Run Redis docker container"
+    cmds:
+      - docker compose -f docker-compose.yaml up -d redis
+    status:
+      - docker compose ps | grep -q "Up"
+
+  env-down:
+    desc: "Stop Redis docker container"
+    cmds:
+      - docker compose down
