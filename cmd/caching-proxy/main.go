@@ -18,22 +18,31 @@ import (
 func main() {
 	cfg, err := config.ParseFlags(os.Args[1:])
 	if err != nil {
-		fmt.Println("flags: %w", err)
+		fmt.Printf("flags: %v", err)
 		return
 	}
 
-	ctx, cancel := signal.NotifyContext(
+	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt, syscall.SIGINT, syscall.SIGTERM,
 	)
-	defer cancel()
+	defer stop()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	rdb := redis.NewClient(&redis.Options{Addr: cache.RedisAddr})
 	defer rdb.Close()
 
-	pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	if cfg.ClearCache {
+		if err := cache.Clear(ctx, cache.NewRedis(rdb)); err != nil {
+			fmt.Printf("clear cache: %v", err)
+			os.Exit(1)
+		}
+		fmt.Println("cache cleared")
+		os.Exit(0)
+	}
+
+	pingCtx, cancelPing := context.WithTimeout(ctx, 3*time.Second)
 	if err := rdb.Ping(pingCtx).Err(); err != nil {
 		logger.Warn(
 			"redis is unavailable, running without caching...",
@@ -41,6 +50,7 @@ func main() {
 			slog.String("error", err.Error()),
 		)
 	}
+	cancelPing()
 
 	srv := transport.NewHTTPServer(cfg, rdb, cache.DefaultTTL, logger)
 	if err := srv.Run(ctx); err != nil {
